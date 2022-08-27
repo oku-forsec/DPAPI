@@ -3,12 +3,10 @@
 
 #########################################################################################
 ##                                                                                     ##
-## This file allows offline execution of the Windows DPAPI "UnprotectData()" function, ##
+## This file allows offline execution of the "UnprotectData()" function,               ##
 ## which is responsible for the DPAPI decryption process.                              ##
 ##                                                                                     ##
 #########################################################################################
-
-###Caution : If you have changed the password for this machine at least once, it may not be available.###
 
 import os
 from dpapick3 import blob,masterkey
@@ -27,12 +25,12 @@ def getDrive_info(Drive="C:", Drive_Status="Logon"):
         print("\nDrive : " + Drive)
         print("Drive Status : " + Drive_Status)
     else:
-        print("\nPlease Enter A 'Drive' Number")
+        print("\nPlease Enter The 'Drive Letter' Number")
         for i in range(len(Mounted_Drive_List)):
             print("%d : %s" % (i,Mounted_Drive_List[i]))
         Drive = Mounted_Drive_List[int(input("Select Number : "))]
         print("\nDrive : " + Drive)
-        print("\nPlease Enter A 'Drive Status' Number")
+        print("\nPlease Enter The 'Drive Status' Number")
         for i in range(len(Drive_Status_List)):
             print("%d : %s" % (i,Drive_Status_List[i]))
         Drive_Status = Drive_Status_List[int(input("Select Number : "))]
@@ -44,7 +42,7 @@ def getUserName(Drive):
     Users_Path = os.path.join(Drive, os.sep,"Users")
     Files = os.listdir(Users_Path)
     Users_Name_List = [f for f in Files if os.path.isdir(os.path.join(Users_Path, f))]
-    print("\nPlease Enter A 'User Name' Number")
+    print("\nPlease Enter The 'User Name' Number")
     for i in range(len(Users_Name_List)):
         print("%d : %s" % (i,Users_Name_List[i]))
     User_Name= Users_Name_List[int(input("Select Number : "))]
@@ -91,13 +89,13 @@ def UnProtectData(BLOB, Drive="C:", Drive_Status="Logon", User_Name="Default"): 
         UnProtectData = win32crypt.CryptUnprotectData(BLOB, None, None, None, 0)[1]
         print("UnprotectData(WinAPI) : " + str(UnProtectData))
     else:
-        UserPass = str(input("User Password : "))
+        UserPass = str(input("Please Enter Your Local Account Password(Not PIN) : "))
         GUID = getGUID_fromBlob(BLOB)
         SID_Info = getSID(Drive,User_Name,GUID)
         SID_Path = SID_Info[0]
         SID = SID_Info[1]
     
-        UserPass_sha1 = calcSHA1_hash(UserPass) ## Plan: Extract from "CREDHIST" ##
+        UserPass_sha1 = calcSHA1_hash(UserPass) ## Plan: add password authentication phase with SAM ##
 
         MasterKeyFile_Path = SID_Path + "\\" + GUID
         with open(MasterKeyFile_Path,"rb") as f:
@@ -116,16 +114,5 @@ def UnProtectData(BLOB, Drive="C:", Drive_Status="Logon", User_Name="Default"): 
         print("UnprotectData(Offline) : " + str(UnProtectData)) 
         #UnprotectData_WinAPI = win32crypt.CryptUnprotectData(BLOB, None, None, None, 0)[1]
     return UnProtectData
-    
 
-##### Verification #####
-"""
-String = "HelloWorld!!"
-String = String.encode()
-CryptData = win32crypt.CryptProtectData(String, None, None, None, None, 0)
-#print(CryptData)
-UncryptData = UnProtectData(CryptData)
-UncryptData_WinAPI = win32crypt.CryptUnprotectData(CryptData, None, None, None, 0)[1]
-print("UnprotectData(WinAPI) : " + str(UncryptData_WinAPI))
-"""
 

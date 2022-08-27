@@ -8,19 +8,16 @@ import sqlite3
 import shutil
 import json
 import base64
-from datetime import datetime
+from datetime import datetime,timedelta
 from Crypto.Cipher import AES
 
 
-def ConvertDate(Value):
-    FileName = 116444736000000000
-    NanoSeconds = 10000000
-    try:
-        UTC = datetime.utcfromtimestamp(((10 * int(Value)) - FileName) / NanoSeconds)
-        return UTC.strftime('%Y-%m-%d %H:%M:%S')
-    except:
+def ConvertDate(Date_Value):
+    UTC = str(datetime(1601, 1, 1) + timedelta(microseconds=Date_Value))
+    if UTC=="1601-01-01 00:00:00":
         return "None"
-
+    else:
+        return UTC
 
 
 def getChromium_info(Drive, User_Name): #Chromium_name:Chrome or Edge or Both
@@ -35,7 +32,7 @@ def getChromium_info(Drive, User_Name): #Chromium_name:Chrome or Edge or Both
     Chromium_List = [d for d in Chromium_Path_Dict.keys()]
     try:
         if len(Chromium_List)==2:
-            print("\nPlease Enter A 'Chomium Base Browser' Number Which You Want To Extract Credentials")
+            print("\nPlease Enter The 'Chomium Base Browser' Number Which You Want To Extract Credentials")
             for i in range(len(Chromium_List)):
                 print("%d : %s" % (i,Chromium_List[i]))
             Chromium = Chromium_List[int(input("Select Number : "))]
@@ -58,7 +55,7 @@ def getChromium_Profile(Chromium_Path):
         #print("\nChromium Profile Is 'Default' Only")
         print("\nProfile : " + Chromium_Profile)
     else:
-        print("\nPlease Enter A 'Profile' Number")
+        print("\nPlease Enter The 'Profile' Number")
         for i in range(len(Chromium_Profile_List)):
             print("%d : %s" % (i,Chromium_Profile_List[i]))
         Chromium_Profile = Chromium_Profile_List[int(input("Select Number : "))]
@@ -79,27 +76,22 @@ def getChromium_AES_Key(LocalState_Path, Drive="C:", Drive_Status="Logon", User_
         print("Error : Failed To Get 'Chromium AES Key Blob'")
     
 
-def decrypt_payload(Cipher, Payload):
-    return Cipher.decrypt(Payload)
-
-def generate_cipher(AES_key, Iv):
-    return AES.new(AES_key, AES.MODE_GCM, Iv)
-
-def decrypt_password(Buff, AES_Key):
+def decrypt_password(Drive,Drive_Status,User_Name,Buff, AES_Key):
     try:
         Iv = Buff[3:15]
-        Payload = Buff[15:]
-        Cipher = generate_cipher(AES_Key, Iv)
-        Decrypted_Pass = decrypt_payload(Cipher, Payload)
-        Decrypted_Pass = Decrypted_Pass[:-16].decode()  # remove suffix bytes
-        return Decrypted_Pass
-    except Exception as e:
-        # print("Probably saved password from Chrome version older than v80\n")
-        # print(str(e))
-        return "Probably an older 'Chromium Version'" #"Chrome < 80"
+        Password = Buff[15:]
+        Cipher = AES.new(AES_Key, AES.MODE_GCM, Iv)
+        Decrypted_Password = Cipher.decrypt(Password)[:-16].decode() # remove suffix bytes
+        return Decrypted_Password
+    except:
+        try:
+            return str(UnProtectData.UnProtectData(Password, Drive, Drive_Status, User_Name)) #Chrome < 80
+        except Exception as e:
+            #print(e)
+            return "Failed To Decrypt Password or Not Supported Chromium Version" 
 
 
-def getPassword(Chromium, Chromium_Path, Profile, Chromium_AES_Key):
+def getPassword(Drive,Drive_Status,User_Name,Chromium, Chromium_Path, Profile, Chromium_AES_Key):
     Credentials_DB_Path = os.path.join(Chromium_Path, Profile, "Login Data")
 
     try:
@@ -121,7 +113,7 @@ def getPassword(Chromium, Chromium_Path, Profile, Chromium_AES_Key):
             Created_UTC = ConvertDate(Created)
             LastUsed_UTC = ConvertDate(LastUsed)
             Encrypted_Password = r[5]
-            Decrypted_Password = decrypt_password(Encrypted_Password, Chromium_AES_Key)
+            Decrypted_Password = decrypt_password(Drive,Drive_Status,User_Name,Encrypted_Password, Chromium_AES_Key)
             if Username != "" or Decrypted_Password != "":
                 print( "*" * 70 + "\nOriginal URL: " + Origin_URL + "\nAction URL: " + Action_URL + "\nUser Name: " + Username + "\nPassword: " + Decrypted_Password
                         + "\nCreated Time(UTC): " + Created_UTC + "\nLast Used Time(UTC): " + LastUsed_UTC + "\n" + "*" * 70 + "\n")
@@ -137,7 +129,7 @@ def getPassword(Chromium, Chromium_Path, Profile, Chromium_AES_Key):
         pass
 
 
-def getCreditCard(Chromium, Chromium_Path, Profile, Chromium_AES_Key):
+def getCreditCard(Drive,Drive_Status,User_Name,Chromium, Chromium_Path, Profile, Chromium_AES_Key):
     Credentials_DB_Path = os.path.join(Chromium_Path, Profile, "Web Data")
 
     try:
@@ -157,7 +149,7 @@ def getCreditCard(Chromium, Chromium_Path, Profile, Chromium_AES_Key):
         for r in Cursor.fetchall():
             Username = r[1]
             Encrypted_Password = r[4]
-            Decrypted_Password = decrypt_password(Encrypted_Password, Chromium_AES_Key)
+            Decrypted_Password = decrypt_password(Drive,Drive_Status,User_Name,Encrypted_Password, Chromium_AES_Key)
             Expire_Month = r[2]
             Expire_Year = r[3]
             print( "*" * 70 + "\nName in Card: " + Username + "\nCard Number: " + Decrypted_Password + "\nExpire Month: " + str(Expire_Month) + "\nExpire Year: " + str(Expire_Year) + "\n" + "*" * 70 + "\n")
@@ -174,7 +166,7 @@ def getCreditCard(Chromium, Chromium_Path, Profile, Chromium_AES_Key):
         pass
 
 
-def getCookie(Chromium, Chromium_Path, Profile, Chromium_AES_Key):
+def getCookie(Drive,Drive_Status,User_Name,Chromium, Chromium_Path, Profile, Chromium_AES_Key):
     Cookies_DB_Path = os.path.join(Chromium_Path, Profile, "Network", "Cookies")
 
     try:
@@ -202,7 +194,7 @@ def getCookie(Chromium, Chromium_Path, Profile, Chromium_AES_Key):
             Creation_UTC = ConvertDate(Creation)
             Expires_UTC = ConvertDate(Expires)
             Encrypted_Value = r[7]
-            Decrypted_Value = decrypt_password(Encrypted_Value, Chromium_AES_Key)
+            Decrypted_Value = decrypt_password(Drive,Drive_Status,User_Name,Encrypted_Value, Chromium_AES_Key)
             print( "*" * 70 + "\nHost: " + Host + "\nPath: " + Path + "\nSecure: " + str(Secure) + "\nCreation Time(UTC):"+ Creation_UTC + "\nExpires(UTC): " + Expires_UTC + "\nName: " 
                     + Name + "\nValue: " + Value + "\nDecrypted Value: " + Decrypted_Value + "*" * 70 + "\n")
     except Exception as e:
@@ -217,24 +209,6 @@ def getCookie(Chromium, Chromium_Path, Profile, Chromium_AES_Key):
         pass
 
 
-##### Verification #####
-"""
-Drive_Info = UnProtectData.getDrive_info()
-Drive,Drive_Status = Drive_Info[0],Drive_Info[1]
-User_Name = UnProtectData.getUserName(Drive)
-Chromium_Path = getChromium_path(Drive, User_Name)
-LocalState_Path = os.path.join(Chromium_Path, "Local State")
-Profile = getChromium_Profile(Chromium_Path)
-Chromium_AES_Key = getChromium_AES_Key(LocalState_Path, Drive, Drive_Status, User_Name)
-
-Credential_DB_Path = os.path.join(Chromium_Path, Profile, "Login Data")
-    
-print(LocalState_Path)
-print(Credential_DB_Path)
-"""
-
-##### main() #####
-
 def main():
     Drive_Info = UnProtectData.getDrive_info()
     Drive, Drive_Status = Drive_Info[0], Drive_Info[1]
@@ -245,8 +219,8 @@ def main():
     Profile = getChromium_Profile(Chromium_Path)
     Chromium_AES_Key = getChromium_AES_Key(LocalState_Path, Drive, Drive_Status, User_Name)
 
-    getPassword(Chromium, Chromium_Path, Profile, Chromium_AES_Key)
-    #getCreditCard(Chromium, Chromium_Path, Profile, Chromium_AES_Key)
-    #getCookie(Chromium, Chromium_Path, Profile, Chromium_AES_Key)
+    getPassword(Drive,Drive_Status,User_Name,Chromium, Chromium_Path, Profile, Chromium_AES_Key)
+    #getCreditCard(Drive,Drive_Status,User_Name,Chromium, Chromium_Path, Profile, Chromium_AES_Key)
+    #getCookie(Drive,Drive_Status,User_Name,Chromium, Chromium_Path, Profile, Chromium_AES_Key)
     
 main()
